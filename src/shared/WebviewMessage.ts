@@ -33,6 +33,7 @@ export interface WebviewMessage {
 		| "showTaskWithId"
 		| "deleteTaskWithId"
 		| "exportTaskWithId"
+		| "forkTaskFromMessage"
 		| "resetState"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"

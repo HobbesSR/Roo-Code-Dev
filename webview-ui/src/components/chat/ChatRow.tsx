@@ -1036,6 +1036,33 @@ const Markdown = memo(({ markdown, partial }: { markdown?: string; partial?: boo
 						title="Copy as markdown">
 						<span className="codicon codicon-copy"></span>
 					</VSCodeButton>
+					<VSCodeButton
+						appearance="icon"
+						style={{
+							padding: "3px",
+							flexShrink: 0,
+							height: "24px",
+							marginTop: "-3px",
+							marginBottom: "-3px",
+							marginRight: "-6px",
+						}}
+						style={{
+							padding: "3px",
+							flexShrink: 0,
+							height: "24px",
+							marginTop: "-3px",
+							marginBottom: "-3px",
+							marginRight: "-6px",
+						}}
+						onClick={(e) => {
+							e.stopPropagation()
+							vscode.postMessage({
+								type: "forkTaskFromMessage",
+								value: message.ts,
+							})
+						}}>
+						<span className="codicon codicon-fork"></span>
+					</VSCodeButton>
 				</div>
 			)}
 		</div>

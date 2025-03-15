@@ -1509,6 +1509,66 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "forkTaskFromMessage": {
+						if (
+							this.getCurrentCline() &&
+							typeof message.value === "number" &&
+							message.value
+						) {
+							const timestamp = message.value
+							// Find the message with the given timestamp
+							const messageIndex = this.getCurrentCline()!.clineMessages.findIndex(
+								(msg) => msg.ts === timestamp
+							)
+
+							if (messageIndex !== -1) {
+								// Get the initial task message if available
+								const taskMessages = this.getCurrentCline()!.clineMessages.filter(
+									(msg) => msg.type === "ask" && msg.ask === "task"
+								)
+								const initialTask = taskMessages.length > 0 ? taskMessages[0].text : ""
+								
+								// Store current task ID for reference
+								const currentTaskId = this.getCurrentCline()!.taskId
+								
+								// Create a new task with the initial prompt
+								await this.initClineWithTask(initialTask)
+								
+								// Get all messages up to and including the message with the given timestamp
+								const messagesUpToSelected = this.getCurrentCline()!.clineMessages.slice(0, messageIndex + 1)
+								
+								// Replace the new task's messages with the filtered messages from the original task
+								if (messagesUpToSelected.length > 0) {
+									await this.getCurrentCline()!.overwriteClineMessages(messagesUpToSelected)
+									
+									// For the API conversation history, only keep messages up to the timestamp
+									try {
+										const { apiConversationHistory } = await this.getTaskWithId(currentTaskId)
+										const apiHistoryIndex = apiConversationHistory.findIndex(
+											(msg) => msg.ts && msg.ts > timestamp
+										)
+										
+										if (apiHistoryIndex !== -1) {
+											const filteredApiHistory = apiConversationHistory.slice(0, apiHistoryIndex)
+											await this.getCurrentCline()!.overwriteApiConversationHistory(filteredApiHistory)
+										} else {
+											await this.getCurrentCline()!.overwriteApiConversationHistory(apiConversationHistory)
+										}
+									} catch (error) {
+										// If there's an error retrieving API history, continue without it
+										console.error("Error retrieving API conversation history for fork:", error)
+									}
+									
+									vscode.window.showInformationMessage("Created a new task from the selected message")
+								} else {
+									vscode.window.showErrorMessage("Failed to create a new task from the selected message")
+								}
+							} else {
+								vscode.window.showErrorMessage("Message with the specified timestamp not found")
+							}
+						}
+						break
+					}
 					case "screenshotQuality":
 						await this.updateGlobalState("screenshotQuality", message.value)
 						await this.postStateToWebview()
@@ -1864,6 +1924,56 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						telemetryService.updateTelemetryState(isOptedIn)
 						await this.postStateToWebview()
 						break
+					case "forkTaskFromMessage": {
+						if (this.getCurrentCline() && typeof message.value === "number" && message.value) {
+							const timestamp = message.value
+							// Find the message with the specified timestamp
+							const messageIndex = this.getCurrentCline()!.clineMessages.findIndex(
+								(msg) => msg.ts === timestamp
+							)
+
+							if (messageIndex !== -1) {
+								// Get current task history item for reference
+								const currentTaskId = this.getCurrentCline()!.taskId
+								
+								// Find the initial task message (if available)
+								const taskMessages = this.getCurrentCline()!.clineMessages.filter(
+									(msg) => msg.type === "ask" && msg.ask === "task"
+								)
+								const initialTask = taskMessages.length > 0 ? taskMessages[0].text : undefined
+								
+								// Create a new task with the initial prompt
+								await this.initClineWithTask(initialTask)
+								
+								// Get all messages up to and including the message with the given timestamp
+								const { historyItem } = await this.getTaskWithId(currentTaskId)
+								const messagesUpToSelected = historyItem.messages?.slice(0, messageIndex + 1) || []
+								
+								// Replace the new task's messages with the filtered messages
+								if (this.getCurrentCline() && messagesUpToSelected.length > 0) {
+									await this.getCurrentCline()!.overwriteClineMessages(messagesUpToSelected)
+									
+									// For the API conversation history, only keep messages up to the timestamp
+									const apiHistory = await this.getTaskWithId(currentTaskId).then(data => {
+										const index = data.apiConversationHistory.findIndex(msg => msg.ts && msg.ts > timestamp)
+										return index !== -1 ? data.apiConversationHistory.slice(0, index) : data.apiConversationHistory
+									}).catch(() => [])
+									
+									if (apiHistory.length > 0) {
+										await this.getCurrentCline()!.overwriteApiConversationHistory(apiHistory)
+									}
+									
+									vscode.window.showInformationMessage("Created a new task from the selected message")
+								} else {
+									vscode.window.showErrorMessage("Failed to create a new task from the selected message")
+								}
+							} else {
+								vscode.window.showErrorMessage("Message with the specified timestamp not found")
+							}
+						}
+						break
+					}
+
 					}
 				}
 			},
