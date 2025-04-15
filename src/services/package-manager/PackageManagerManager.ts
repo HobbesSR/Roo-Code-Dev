@@ -107,7 +107,9 @@ export class PackageManagerManager {
 			console.log(`PackageManagerManager: Cache miss or expired for ${url}, fetching fresh data`)
 
 			// Fetch fresh data with timeout protection
-			const fetchPromise = this.gitFetcher.fetchRepository(url, forceRefresh, sourceName)
+			// Use the valid URL if available from a previous fetch
+			const validUrl = cached?.data.validUrl || url
+			const fetchPromise = this.gitFetcher.fetchRepository(validUrl, forceRefresh, sourceName)
 
 			// Create a timeout promise
 			const timeoutPromise = new Promise<PackageManagerRepository>((_, reject) => {
@@ -136,6 +138,7 @@ export class PackageManagerManager {
 				},
 				items: [],
 				url,
+				error: error instanceof Error ? error.message : String(error),
 			}
 		}
 	}
@@ -431,17 +434,33 @@ export class PackageManagerManager {
 	}
 
 	/**
-	 * Helper method to check if an item matches the given filters
+	 * Helper method to check if text contains a search term (case-insensitive)
+	 * @param text The text to search in
+	 * @param searchTerm The term to search for
+	 * @returns True if the text contains the search term
+	 * @private
 	 */
+	private containsSearchTerm(text: string, searchTerm: string): boolean {
+		if (!searchTerm) return true
+		return this.normalizeText(text).includes(this.normalizeText(searchTerm))
+	}
+
 	/**
-	 * Helper method to check if an item matches the given filters
+	 * Normalizes text for case/whitespace-insensitive comparison
+	 * @param text The text to normalize
+	 * @returns Normalized text
+	 * @private
 	 */
-	/**
-	 * Helper method to check if an item matches the given filters
-	 */
+	private normalizeText(text: string): string {
+		return text.toLowerCase().replace(/\s+/g, " ").trim()
+	}
 
 	/**
 	 * Helper method to get the sort value for an item
+	 * @param item The item to get the sort value for
+	 * @param sortBy The field to sort by
+	 * @returns The string value to use for sorting
+	 * @private
 	 */
 	private getSortValue(
 		item:

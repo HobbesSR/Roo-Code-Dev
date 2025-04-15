@@ -25,6 +25,12 @@ export function isValidGitRepositoryUrl(url: string): boolean {
 	// Trim the URL to remove any leading/trailing whitespace
 	const trimmedUrl = url.trim()
 
+	// Check for GitHub web URLs with /tree/ or /blob/ which are not valid Git repository URLs
+	const githubWebUrlPattern = /^https?:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(tree|blob)\/[^/]+\/.+$/
+	if (githubWebUrlPattern.test(trimmedUrl)) {
+		return false
+	}
+
 	// HTTPS pattern (GitHub, GitLab, Bitbucket, etc.)
 	// Examples:
 	// - https://github.com/username/repo
@@ -32,7 +38,7 @@ export function isValidGitRepositoryUrl(url: string): boolean {
 	// - https://gitlab.com/username/repo
 	// - https://bitbucket.org/username/repo
 	const httpsPattern =
-		/^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org|dev\.azure\.com)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\/.+)*(\.git)?$/
+		/^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org|dev\.azure\.com)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\.git)?$/
 
 	// SSH pattern
 	// Examples:

@@ -101,6 +101,7 @@ export interface PackageManagerRepository {
 	metadata: RepositoryMetadata
 	items: PackageManagerItem[]
 	url: string
+	validUrl?: string // The valid Git repository URL (after conversion if needed)
 	error?: string
 }
 

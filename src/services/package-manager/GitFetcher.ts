@@ -31,6 +31,27 @@ export class GitFetcher {
 	}
 
 	/**
+	 * Converts a GitHub web URL to a valid Git repository URL
+	 * @param url The URL to convert
+	 * @returns A valid Git repository URL
+	 */
+	private convertGitHubWebUrl(url: string): string {
+		// Check if this is a GitHub web URL with /tree/ or /blob/
+		const githubWebUrlPattern =
+			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)\/.+$/
+		const match = url.match(githubWebUrlPattern)
+
+		if (match) {
+			// Extract the username, repo name, and branch
+			const [, username, repo] = match
+			// Convert to a valid Git repository URL
+			return `https://github.com/${username}/${repo}.git`
+		}
+
+		return url
+	}
+
+	/**
 	 * Fetch repository data
 	 * @param repoUrl Repository URL
 	 * @param forceRefresh Whether to bypass cache
@@ -45,12 +66,18 @@ export class GitFetcher {
 		// Ensure cache directory exists
 		await fs.mkdir(this.cacheDir, { recursive: true })
 
+		// Convert GitHub web URLs to valid Git repository URLs
+		const validRepoUrl = this.convertGitHubWebUrl(repoUrl)
+		if (validRepoUrl !== repoUrl) {
+			console.log(`GitFetcher: Converted GitHub web URL ${repoUrl} to ${validRepoUrl}`)
+		}
+
 		// Get repository directory name from URL
-		const repoName = this.getRepositoryName(repoUrl)
+		const repoName = this.getRepositoryName(validRepoUrl)
 		const repoDir = path.join(this.cacheDir, repoName)
 
 		// Clone or pull repository
-		await this.cloneOrPullRepository(repoUrl, repoDir, forceRefresh)
+		await this.cloneOrPullRepository(validRepoUrl, repoDir, forceRefresh)
 
 		// Initialize git for this repository
 		this.initGit(repoDir)
@@ -62,12 +89,13 @@ export class GitFetcher {
 		const metadata = await this.parseRepositoryMetadata(repoDir)
 
 		// Parse package manager items
-		const items = await this.parsePackageManagerItems(repoDir, repoUrl, sourceName || metadata.name)
+		const items = await this.parsePackageManagerItems(repoDir, validRepoUrl, sourceName || metadata.name)
 
 		return {
 			metadata,
 			items,
-			url: repoUrl,
+			url: repoUrl, // Keep the original URL for display purposes
+			validUrl: validRepoUrl, // Store the valid URL for future operations
 		}
 	}
 
