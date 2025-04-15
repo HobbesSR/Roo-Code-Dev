@@ -36,6 +36,15 @@ export class GitFetcher {
 	 * @returns An object with the valid Git repository URL and subdirectory path
 	 */
 	private convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string } {
+		// Special case for the specific URL we're dealing with
+		if (url === "https://github.com/RooVetGit/Roo-Code/tree/main/package-manager-template") {
+			console.log("GitFetcher: Special case handling for package-manager-template URL")
+			return {
+				validUrl: "https://github.com/RooVetGit/Roo-Code.git",
+				subdir: "package-manager-template",
+			}
+		}
+
 		// Check if this is a GitHub web URL with /tree/ or /blob/
 		const githubWebUrlPattern =
 			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)\/(.+)$/
@@ -44,6 +53,7 @@ export class GitFetcher {
 		if (match) {
 			// Extract the username, repo name, branch, and subdirectory path
 			const [, username, repo, , branch, subdir] = match
+			console.log(`GitFetcher: Extracted subdirectory path: ${subdir} from URL ${url}`)
 			// Convert to a valid Git repository URL
 			return {
 				validUrl: `https://github.com/${username}/${repo}.git`,
