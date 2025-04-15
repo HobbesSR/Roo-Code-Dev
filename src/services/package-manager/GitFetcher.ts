@@ -86,6 +86,8 @@ export class GitFetcher {
 
 		// If we have a subdirectory, use that as the base directory for validation and parsing
 		const baseDir = subdir ? path.join(repoDir, subdir) : repoDir
+		console.log(`GitFetcher: Using base directory ${baseDir} for validation and parsing`)
+		console.log(`GitFetcher: Subdirectory path: ${subdir || "none"}`)
 
 		// Initialize git for this repository
 		this.initGit(repoDir)
@@ -215,17 +217,33 @@ export class GitFetcher {
 	private async validateRepositoryStructure(repoDir: string): Promise<void> {
 		// Check for metadata.en.yml
 		const metadataPath = path.join(repoDir, "metadata.en.yml")
+		console.log(`GitFetcher: Checking for metadata.en.yml at ${metadataPath}`)
+
+		// List directory contents for debugging
+		try {
+			const files = await fs.readdir(repoDir)
+			console.log(`GitFetcher: Directory contents of ${repoDir}:`, files)
+		} catch (error) {
+			console.error(`GitFetcher: Error reading directory ${repoDir}:`, error)
+		}
+
 		try {
 			await fs.stat(metadataPath)
-		} catch {
+			console.log(`GitFetcher: Found metadata.en.yml at ${metadataPath}`)
+		} catch (error) {
+			console.error(`GitFetcher: Error finding metadata.en.yml:`, error)
 			throw new Error("Repository is missing metadata.en.yml file")
 		}
 
 		// Check for README.md
 		const readmePath = path.join(repoDir, "README.md")
+		console.log(`GitFetcher: Checking for README.md at ${readmePath}`)
+
 		try {
 			await fs.stat(readmePath)
-		} catch {
+			console.log(`GitFetcher: Found README.md at ${readmePath}`)
+		} catch (error) {
+			console.error(`GitFetcher: Error finding README.md:`, error)
 			throw new Error("Repository is missing README.md file")
 		}
 	}
