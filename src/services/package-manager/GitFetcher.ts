@@ -46,8 +46,9 @@ export class GitFetcher {
 		}
 
 		// Check if this is a GitHub web URL with /tree/ or /blob/
+		// This pattern captures the username, repo name, branch, and subdirectory path
 		const githubWebUrlPattern =
-			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)\/(.+)$/
+			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)(?:\/(.+))?$/
 		const match = url.match(githubWebUrlPattern)
 
 		if (match) {
@@ -235,6 +236,9 @@ export class GitFetcher {
 			console.log(`GitFetcher: Directory contents of ${repoDir}:`, files)
 		} catch (error) {
 			console.error(`GitFetcher: Error reading directory ${repoDir}:`, error)
+			throw new Error(
+				`Cannot access directory ${repoDir}: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 
 		try {
