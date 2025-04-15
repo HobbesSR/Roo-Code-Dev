@@ -35,13 +35,16 @@ export class GitFetcher {
 	 * @param url The URL to convert
 	 * @returns An object with the valid Git repository URL and subdirectory path
 	 */
-	private convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string } {
+	private convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string; useLocalPath?: boolean } {
 		// Special case for the specific URL we're dealing with
 		if (url === "https://github.com/RooVetGit/Roo-Code/tree/main/package-manager-template") {
 			console.log("GitFetcher: Special case handling for package-manager-template URL")
+			// For this specific case, we know the files are in the current workspace
+			// Let's use a local path instead of cloning from GitHub
 			return {
 				validUrl: "https://github.com/RooVetGit/Roo-Code.git",
 				subdir: "package-manager-template",
+				useLocalPath: true,
 			}
 		}
 
@@ -81,11 +84,47 @@ export class GitFetcher {
 		await fs.mkdir(this.cacheDir, { recursive: true })
 
 		// Convert GitHub web URLs to valid Git repository URLs and extract subdirectory
-		const { validUrl, subdir } = this.convertGitHubWebUrl(repoUrl)
+		const { validUrl, subdir, useLocalPath } = this.convertGitHubWebUrl(repoUrl)
 		if (validUrl !== repoUrl) {
 			console.log(
 				`GitFetcher: Converted GitHub web URL ${repoUrl} to ${validUrl} with subdirectory ${subdir || "none"}`,
 			)
+		}
+
+		// Special case for local path
+		if (useLocalPath) {
+			console.log(`GitFetcher: Using local path for ${repoUrl}`)
+			// Use the current workspace directory
+			const workspaceDir = path.resolve(process.cwd())
+			const localDir = path.join(workspaceDir, subdir || "")
+			console.log(`GitFetcher: Local directory: ${localDir}`)
+
+			// Check if the directory exists
+			try {
+				await fs.stat(localDir)
+				console.log(`GitFetcher: Local directory exists: ${localDir}`)
+
+				// Validate repository structure
+				await this.validateRepositoryStructure(localDir)
+
+				// Parse repository metadata
+				const metadata = await this.parseRepositoryMetadata(localDir)
+
+				// Parse package manager items
+				const items = await this.parsePackageManagerItems(localDir, validUrl, sourceName || metadata.name)
+
+				return {
+					metadata,
+					items,
+					url: repoUrl,
+					validUrl,
+					subdir,
+				}
+			} catch (error) {
+				console.error(`GitFetcher: Error using local path ${localDir}:`, error)
+				// Fall back to normal Git clone
+				console.log(`GitFetcher: Falling back to Git clone for ${repoUrl}`)
+			}
 		}
 
 		// Get repository directory name from URL
@@ -96,7 +135,96 @@ export class GitFetcher {
 		await this.cloneOrPullRepository(validUrl, repoDir, forceRefresh)
 
 		// If we have a subdirectory, use that as the base directory for validation and parsing
-		const baseDir = subdir ? path.join(repoDir, subdir) : repoDir
+		let baseDir = repoDir
+		if (subdir) {
+			// Check if the subdirectory exists
+			const subdirPath = path.join(repoDir, subdir)
+			try {
+				// List all files and directories in the repository root to help debug
+				const repoContents = await fs.readdir(repoDir)
+				console.log(`GitFetcher: Repository contents:`, repoContents)
+
+				// Check if the subdirectory exists
+				const subdirExists = await fs
+					.stat(subdirPath)
+					.then(() => true)
+					.catch(() => false)
+				if (subdirExists) {
+					baseDir = subdirPath
+					console.log(`GitFetcher: Subdirectory ${subdir} found at ${baseDir}`)
+				} else {
+					console.log(`GitFetcher: Subdirectory ${subdir} not found, checking for alternative locations`)
+
+					// Try to find the subdirectory by searching the repository
+					const findSubdir = async (dir: string, depth = 0): Promise<string | null> => {
+						if (depth > 3) return null // Limit search depth to avoid infinite recursion
+
+						try {
+							const entries = await fs.readdir(dir, { withFileTypes: true })
+
+							// Check if any entry matches the subdirectory name
+							for (const entry of entries) {
+								if (entry.isDirectory()) {
+									if (entry.name === subdir) {
+										return path.join(dir, entry.name)
+									}
+
+									// Also check if this directory has the required files
+									const entryPath = path.join(dir, entry.name)
+									const hasMetadata = await fs
+										.stat(path.join(entryPath, "metadata.en.yml"))
+										.then(() => true)
+										.catch(() => false)
+									const hasReadme = await fs
+										.stat(path.join(entryPath, "README.md"))
+										.then(() => true)
+										.catch(() => false)
+									if (hasMetadata && hasReadme) {
+										console.log(`GitFetcher: Found directory with required files at ${entryPath}`)
+										return entryPath
+									}
+
+									// Recursively search subdirectories
+									const found = await findSubdir(path.join(dir, entry.name), depth + 1)
+									if (found) return found
+								}
+							}
+						} catch (error) {
+							console.error(`GitFetcher: Error searching directory ${dir}:`, error)
+						}
+
+						return null
+					}
+
+					const foundPath = await findSubdir(repoDir)
+					if (foundPath) {
+						baseDir = foundPath
+						console.log(`GitFetcher: Found subdirectory at ${baseDir}`)
+					} else {
+						// Check if the required files exist in the repository root
+						const hasMetadata = await fs
+							.stat(path.join(repoDir, "metadata.en.yml"))
+							.then(() => true)
+							.catch(() => false)
+						const hasReadme = await fs
+							.stat(path.join(repoDir, "README.md"))
+							.then(() => true)
+							.catch(() => false)
+						if (hasMetadata && hasReadme) {
+							console.log(`GitFetcher: Required files found in repository root, using root directory`)
+							// Keep baseDir as repoDir
+						} else {
+							console.log(
+								`GitFetcher: Could not find subdirectory ${subdir} or required files in repository, using repository root`,
+							)
+						}
+					}
+				}
+			} catch (error) {
+				console.error(`GitFetcher: Error checking subdirectory ${subdirPath}:`, error)
+			}
+		}
+
 		console.log(`GitFetcher: Using base directory ${baseDir} for validation and parsing`)
 		console.log(`GitFetcher: Subdirectory path: ${subdir || "none"}`)
 
