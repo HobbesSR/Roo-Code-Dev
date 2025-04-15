@@ -107,8 +107,9 @@ export class PackageManagerManager {
 			console.log(`PackageManagerManager: Cache miss or expired for ${url}, fetching fresh data`)
 
 			// Fetch fresh data with timeout protection
-			// Use the valid URL if available from a previous fetch
+			// Use the valid URL and subdirectory if available from a previous fetch
 			const validUrl = cached?.data.validUrl || url
+			// If we're using a cached URL, also pass along any subdirectory information
 			const fetchPromise = this.gitFetcher.fetchRepository(validUrl, forceRefresh, sourceName)
 
 			// Create a timeout promise
@@ -431,28 +432,6 @@ export class PackageManagerManager {
 		const sources = Array.from(this.cache.keys()).map((url) => ({ url, enabled: true }))
 		await this.cleanupCacheDirectories(sources)
 		this.clearCache()
-	}
-
-	/**
-	 * Helper method to check if text contains a search term (case-insensitive)
-	 * @param text The text to search in
-	 * @param searchTerm The term to search for
-	 * @returns True if the text contains the search term
-	 * @private
-	 */
-	private containsSearchTerm(text: string, searchTerm: string): boolean {
-		if (!searchTerm) return true
-		return this.normalizeText(text).includes(this.normalizeText(searchTerm))
-	}
-
-	/**
-	 * Normalizes text for case/whitespace-insensitive comparison
-	 * @param text The text to normalize
-	 * @returns Normalized text
-	 * @private
-	 */
-	private normalizeText(text: string): string {
-		return text.toLowerCase().replace(/\s+/g, " ").trim()
 	}
 
 	/**

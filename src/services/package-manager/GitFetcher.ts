@@ -31,24 +31,27 @@ export class GitFetcher {
 	}
 
 	/**
-	 * Converts a GitHub web URL to a valid Git repository URL
+	 * Converts a GitHub web URL to a valid Git repository URL and extracts the subdirectory path
 	 * @param url The URL to convert
-	 * @returns A valid Git repository URL
+	 * @returns An object with the valid Git repository URL and subdirectory path
 	 */
-	private convertGitHubWebUrl(url: string): string {
+	private convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string } {
 		// Check if this is a GitHub web URL with /tree/ or /blob/
 		const githubWebUrlPattern =
-			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)\/.+$/
+			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)\/(.+)$/
 		const match = url.match(githubWebUrlPattern)
 
 		if (match) {
-			// Extract the username, repo name, and branch
-			const [, username, repo] = match
+			// Extract the username, repo name, branch, and subdirectory path
+			const [, username, repo, , branch, subdir] = match
 			// Convert to a valid Git repository URL
-			return `https://github.com/${username}/${repo}.git`
+			return {
+				validUrl: `https://github.com/${username}/${repo}.git`,
+				subdir,
+			}
 		}
 
-		return url
+		return { validUrl: url }
 	}
 
 	/**
@@ -66,36 +69,42 @@ export class GitFetcher {
 		// Ensure cache directory exists
 		await fs.mkdir(this.cacheDir, { recursive: true })
 
-		// Convert GitHub web URLs to valid Git repository URLs
-		const validRepoUrl = this.convertGitHubWebUrl(repoUrl)
-		if (validRepoUrl !== repoUrl) {
-			console.log(`GitFetcher: Converted GitHub web URL ${repoUrl} to ${validRepoUrl}`)
+		// Convert GitHub web URLs to valid Git repository URLs and extract subdirectory
+		const { validUrl, subdir } = this.convertGitHubWebUrl(repoUrl)
+		if (validUrl !== repoUrl) {
+			console.log(
+				`GitFetcher: Converted GitHub web URL ${repoUrl} to ${validUrl} with subdirectory ${subdir || "none"}`,
+			)
 		}
 
 		// Get repository directory name from URL
-		const repoName = this.getRepositoryName(validRepoUrl)
+		const repoName = this.getRepositoryName(validUrl)
 		const repoDir = path.join(this.cacheDir, repoName)
 
 		// Clone or pull repository
-		await this.cloneOrPullRepository(validRepoUrl, repoDir, forceRefresh)
+		await this.cloneOrPullRepository(validUrl, repoDir, forceRefresh)
+
+		// If we have a subdirectory, use that as the base directory for validation and parsing
+		const baseDir = subdir ? path.join(repoDir, subdir) : repoDir
 
 		// Initialize git for this repository
 		this.initGit(repoDir)
 
 		// Validate repository structure
-		await this.validateRepositoryStructure(repoDir)
+		await this.validateRepositoryStructure(baseDir)
 
 		// Parse repository metadata
-		const metadata = await this.parseRepositoryMetadata(repoDir)
+		const metadata = await this.parseRepositoryMetadata(baseDir)
 
 		// Parse package manager items
-		const items = await this.parsePackageManagerItems(repoDir, validRepoUrl, sourceName || metadata.name)
+		const items = await this.parsePackageManagerItems(baseDir, validUrl, sourceName || metadata.name)
 
 		return {
 			metadata,
 			items,
 			url: repoUrl, // Keep the original URL for display purposes
-			validUrl: validRepoUrl, // Store the valid URL for future operations
+			validUrl, // Store the valid URL for future operations
+			subdir, // Store the subdirectory path if any
 		}
 	}
 
