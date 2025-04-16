@@ -6,6 +6,7 @@ import simpleGit, { SimpleGit } from "simple-git"
 import { MetadataScanner } from "./MetadataScanner"
 import { validateAnyMetadata } from "./schemas"
 import { PackageManagerItem, PackageManagerRepository, RepositoryMetadata } from "./types"
+import { convertGitHubWebUrl } from "../../shared/validation/git-url-validation"
 
 /**
  * Handles fetching and caching package manager repositories
@@ -31,6 +32,22 @@ export class GitFetcher {
 	}
 
 	/**
+	 * Converts a GitHub web URL to a valid Git repository URL and extracts the subdirectory path
+	 * @param url The URL to convert
+	 * @returns An object with the valid Git repository URL and subdirectory path
+	 */
+	private convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string } {
+		// Use the centralized function to convert GitHub web URLs
+		const result = convertGitHubWebUrl(url)
+		if (result) {
+			console.log(`GitFetcher: Extracted subdirectory path: ${result.subdir || "none"} from URL ${url}`)
+			return result
+		}
+
+		return { validUrl: url }
+	}
+
+	/**
 	 * Fetch repository data
 	 * @param repoUrl Repository URL
 	 * @param forceRefresh Whether to bypass cache
@@ -45,29 +62,133 @@ export class GitFetcher {
 		// Ensure cache directory exists
 		await fs.mkdir(this.cacheDir, { recursive: true })
 
+		// Convert GitHub web URLs to valid Git repository URLs and extract subdirectory
+		const { validUrl, subdir } = this.convertGitHubWebUrl(repoUrl)
+		if (validUrl !== repoUrl) {
+			console.log(
+				`GitFetcher: Converted GitHub web URL ${repoUrl} to ${validUrl} with subdirectory ${subdir || "none"}`,
+			)
+		}
+
 		// Get repository directory name from URL
-		const repoName = this.getRepositoryName(repoUrl)
+		const repoName = this.getRepositoryName(validUrl)
 		const repoDir = path.join(this.cacheDir, repoName)
 
 		// Clone or pull repository
-		await this.cloneOrPullRepository(repoUrl, repoDir, forceRefresh)
+		await this.cloneOrPullRepository(validUrl, repoDir, forceRefresh)
+
+		// If we have a subdirectory, use that as the base directory for validation and parsing
+		let baseDir = repoDir
+		if (subdir) {
+			// Check if the subdirectory exists
+			const subdirPath = path.join(repoDir, subdir)
+			try {
+				// List all files and directories in the repository root to help debug
+				const repoContents = await fs.readdir(repoDir)
+				console.log(`GitFetcher: Repository contents:`, repoContents)
+
+				// Check if the subdirectory exists
+				const subdirExists = await fs
+					.stat(subdirPath)
+					.then(() => true)
+					.catch(() => false)
+				if (subdirExists) {
+					baseDir = subdirPath
+					console.log(`GitFetcher: Subdirectory ${subdir} found at ${baseDir}`)
+				} else {
+					console.log(`GitFetcher: Subdirectory ${subdir} not found, checking for alternative locations`)
+
+					// Try to find the subdirectory by searching the repository
+					const findSubdir = async (dir: string, depth = 0): Promise<string | null> => {
+						if (depth > 3) return null // Limit search depth to avoid infinite recursion
+
+						try {
+							const entries = await fs.readdir(dir, { withFileTypes: true })
+
+							// Check if any entry matches the subdirectory name
+							for (const entry of entries) {
+								if (entry.isDirectory()) {
+									if (entry.name === subdir) {
+										return path.join(dir, entry.name)
+									}
+
+									// Also check if this directory has the required files
+									const entryPath = path.join(dir, entry.name)
+									const hasMetadata = await fs
+										.stat(path.join(entryPath, "metadata.en.yml"))
+										.then(() => true)
+										.catch(() => false)
+									const hasReadme = await fs
+										.stat(path.join(entryPath, "README.md"))
+										.then(() => true)
+										.catch(() => false)
+									if (hasMetadata && hasReadme) {
+										console.log(`GitFetcher: Found directory with required files at ${entryPath}`)
+										return entryPath
+									}
+
+									// Recursively search subdirectories
+									const found = await findSubdir(path.join(dir, entry.name), depth + 1)
+									if (found) return found
+								}
+							}
+						} catch (error) {
+							console.error(`GitFetcher: Error searching directory ${dir}:`, error)
+						}
+
+						return null
+					}
+
+					const foundPath = await findSubdir(repoDir)
+					if (foundPath) {
+						baseDir = foundPath
+						console.log(`GitFetcher: Found subdirectory at ${baseDir}`)
+					} else {
+						// Check if the required files exist in the repository root
+						const hasMetadata = await fs
+							.stat(path.join(repoDir, "metadata.en.yml"))
+							.then(() => true)
+							.catch(() => false)
+						const hasReadme = await fs
+							.stat(path.join(repoDir, "README.md"))
+							.then(() => true)
+							.catch(() => false)
+						if (hasMetadata && hasReadme) {
+							console.log(`GitFetcher: Required files found in repository root, using root directory`)
+							// Keep baseDir as repoDir
+						} else {
+							console.log(
+								`GitFetcher: Could not find subdirectory ${subdir} or required files in repository, using repository root`,
+							)
+						}
+					}
+				}
+			} catch (error) {
+				console.error(`GitFetcher: Error checking subdirectory ${subdirPath}:`, error)
+			}
+		}
+
+		console.log(`GitFetcher: Using base directory ${baseDir} for validation and parsing`)
+		console.log(`GitFetcher: Subdirectory path: ${subdir || "none"}`)
 
 		// Initialize git for this repository
 		this.initGit(repoDir)
 
 		// Validate repository structure
-		await this.validateRepositoryStructure(repoDir)
+		await this.validateRepositoryStructure(baseDir)
 
 		// Parse repository metadata
-		const metadata = await this.parseRepositoryMetadata(repoDir)
+		const metadata = await this.parseRepositoryMetadata(baseDir)
 
 		// Parse package manager items
-		const items = await this.parsePackageManagerItems(repoDir, repoUrl, sourceName || metadata.name)
+		const items = await this.parsePackageManagerItems(baseDir, validUrl, sourceName || metadata.name)
 
 		return {
 			metadata,
 			items,
-			url: repoUrl,
+			url: repoUrl, // Keep the original URL for display purposes
+			validUrl, // Store the valid URL for future operations
+			subdir, // Store the subdirectory path if any
 		}
 	}
 
@@ -178,17 +299,36 @@ export class GitFetcher {
 	private async validateRepositoryStructure(repoDir: string): Promise<void> {
 		// Check for metadata.en.yml
 		const metadataPath = path.join(repoDir, "metadata.en.yml")
+		console.log(`GitFetcher: Checking for metadata.en.yml at ${metadataPath}`)
+
+		// List directory contents for debugging
+		try {
+			const files = await fs.readdir(repoDir)
+			console.log(`GitFetcher: Directory contents of ${repoDir}:`, files)
+		} catch (error) {
+			console.error(`GitFetcher: Error reading directory ${repoDir}:`, error)
+			throw new Error(
+				`Cannot access directory ${repoDir}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+
 		try {
 			await fs.stat(metadataPath)
-		} catch {
+			console.log(`GitFetcher: Found metadata.en.yml at ${metadataPath}`)
+		} catch (error) {
+			console.error(`GitFetcher: Error finding metadata.en.yml:`, error)
 			throw new Error("Repository is missing metadata.en.yml file")
 		}
 
 		// Check for README.md
 		const readmePath = path.join(repoDir, "README.md")
+		console.log(`GitFetcher: Checking for README.md at ${readmePath}`)
+
 		try {
 			await fs.stat(readmePath)
-		} catch {
+			console.log(`GitFetcher: Found README.md at ${readmePath}`)
+		} catch (error) {
+			console.error(`GitFetcher: Error finding README.md:`, error)
 			throw new Error("Repository is missing README.md file")
 		}
 	}

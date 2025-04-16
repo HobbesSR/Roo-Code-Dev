@@ -2,6 +2,7 @@
  * Validation utilities for package manager sources
  */
 import { PackageManagerSource } from "./types"
+import { convertGitHubWebUrl, isValidGitRepositoryUrl } from "../../shared/validation/git-url-validation"
 
 /**
  * Error type for package manager source validation
@@ -11,43 +12,8 @@ export interface ValidationError {
 	message: string
 }
 
-/**
- * Validates a package manager source URL
- * @param url The URL to validate
- * @returns An array of validation errors, empty if valid
- */
-/**
- * Checks if a URL is a valid Git repository URL
- * @param url The URL to validate
- * @returns True if the URL is a valid Git repository URL, false otherwise
- */
-export function isValidGitRepositoryUrl(url: string): boolean {
-	// Trim the URL to remove any leading/trailing whitespace
-	const trimmedUrl = url.trim()
-
-	// HTTPS pattern (GitHub, GitLab, Bitbucket, etc.)
-	// Examples:
-	// - https://github.com/username/repo
-	// - https://github.com/username/repo.git
-	// - https://gitlab.com/username/repo
-	// - https://bitbucket.org/username/repo
-	const httpsPattern =
-		/^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org|dev\.azure\.com)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\/.+)*(\.git)?$/
-
-	// SSH pattern
-	// Examples:
-	// - git@github.com:username/repo.git
-	// - git@gitlab.com:username/repo.git
-	const sshPattern = /^git@(github\.com|gitlab\.com|bitbucket\.org):([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(\.git)?$/
-
-	// Git protocol pattern
-	// Examples:
-	// - git://github.com/username/repo.git
-	const gitProtocolPattern =
-		/^git:\/\/(github\.com|gitlab\.com|bitbucket\.org)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\.git)?$/
-
-	return httpsPattern.test(trimmedUrl) || sshPattern.test(trimmedUrl) || gitProtocolPattern.test(trimmedUrl)
-}
+// Re-export the shared validation functions
+export { convertGitHubWebUrl, isValidGitRepositoryUrl }
 
 export function validateSourceUrl(url: string): ValidationError[] {
 	const errors: ValidationError[] = []

@@ -8,6 +8,7 @@ import { PackageManagerItem, PackageManagerSource } from "../../../../src/servic
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "cmdk"
 import { isFilterActive as checkFilterActive, getDisplayedItems as filterAndSortItems } from "./selectors"
 import { PackageManagerItemCard } from "./components/PackageManagerItemCard"
+import { isValidGitRepositoryUrl } from "@/utils/git-validation"
 
 interface PackageManagerViewProps {
 	onDone?: () => void
@@ -602,18 +603,6 @@ const PackageManagerSourcesConfig: React.FC<PackageManagerSourcesConfigProps> = 
 			)}
 		</div>
 	)
-}
-
-const isValidGitRepositoryUrl = (url: string): boolean => {
-	const trimmedUrl = url.trim()
-
-	const httpsPattern =
-		/^https?:\/\/(github\.com|gitlab\.com|bitbucket\.org|dev\.azure\.com)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\/.+)*(\.git)?$/
-	const sshPattern = /^git@(github\.com|gitlab\.com|bitbucket\.org):([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(\.git)?$/
-	const gitProtocolPattern =
-		/^git:\/\/(github\.com|gitlab\.com|bitbucket\.org)\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(\.git)?$/
-
-	return httpsPattern.test(trimmedUrl) || sshPattern.test(trimmedUrl) || gitProtocolPattern.test(trimmedUrl)
 }
 
 export default PackageManagerView

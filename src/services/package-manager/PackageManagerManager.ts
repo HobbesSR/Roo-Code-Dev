@@ -107,7 +107,10 @@ export class PackageManagerManager {
 			console.log(`PackageManagerManager: Cache miss or expired for ${url}, fetching fresh data`)
 
 			// Fetch fresh data with timeout protection
-			const fetchPromise = this.gitFetcher.fetchRepository(url, forceRefresh, sourceName)
+			// Use the valid URL and subdirectory if available from a previous fetch
+			const validUrl = cached?.data.validUrl || url
+			// If we're using a cached URL, also pass along any subdirectory information
+			const fetchPromise = this.gitFetcher.fetchRepository(validUrl, forceRefresh, sourceName)
 
 			// Create a timeout promise
 			const timeoutPromise = new Promise<PackageManagerRepository>((_, reject) => {
@@ -136,6 +139,7 @@ export class PackageManagerManager {
 				},
 				items: [],
 				url,
+				error: error instanceof Error ? error.message : String(error),
 			}
 		}
 	}
@@ -431,17 +435,11 @@ export class PackageManagerManager {
 	}
 
 	/**
-	 * Helper method to check if an item matches the given filters
-	 */
-	/**
-	 * Helper method to check if an item matches the given filters
-	 */
-	/**
-	 * Helper method to check if an item matches the given filters
-	 */
-
-	/**
 	 * Helper method to get the sort value for an item
+	 * @param item The item to get the sort value for
+	 * @param sortBy The field to sort by
+	 * @returns The string value to use for sorting
+	 * @private
 	 */
 	private getSortValue(
 		item:
