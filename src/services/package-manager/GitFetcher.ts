@@ -6,6 +6,7 @@ import simpleGit, { SimpleGit } from "simple-git"
 import { MetadataScanner } from "./MetadataScanner"
 import { validateAnyMetadata } from "./schemas"
 import { PackageManagerItem, PackageManagerRepository, RepositoryMetadata } from "./types"
+import { convertGitHubWebUrl } from "./validation"
 
 /**
  * Handles fetching and caching package manager repositories
@@ -48,21 +49,11 @@ export class GitFetcher {
 			}
 		}
 
-		// Check if this is a GitHub web URL with /tree/ or /blob/
-		// This pattern captures the username, repo name, branch, and subdirectory path
-		const githubWebUrlPattern =
-			/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)(?:\/(.+))?$/
-		const match = url.match(githubWebUrlPattern)
-
-		if (match) {
-			// Extract the username, repo name, branch, and subdirectory path
-			const [, username, repo, , branch, subdir] = match
-			console.log(`GitFetcher: Extracted subdirectory path: ${subdir} from URL ${url}`)
-			// Convert to a valid Git repository URL
-			return {
-				validUrl: `https://github.com/${username}/${repo}.git`,
-				subdir,
-			}
+		// Use the centralized function to convert GitHub web URLs
+		const result = convertGitHubWebUrl(url)
+		if (result) {
+			console.log(`GitFetcher: Extracted subdirectory path: ${result.subdir || "none"} from URL ${url}`)
+			return result
 		}
 
 		return { validUrl: url }

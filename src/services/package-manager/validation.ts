@@ -12,23 +12,45 @@ export interface ValidationError {
 }
 
 /**
- * Validates a package manager source URL
- * @param url The URL to validate
- * @returns An array of validation errors, empty if valid
+ * Converts a GitHub web URL to a valid Git repository URL and extracts the subdirectory path
+ * @param url The URL to convert
+ * @returns An object with the valid Git repository URL and subdirectory path, or null if not a GitHub web URL
  */
+export function convertGitHubWebUrl(url: string): { validUrl: string; subdir?: string } | null {
+	// Trim the URL to remove any leading/trailing whitespace
+	const trimmedUrl = url.trim()
+
+	// Check if this is a GitHub web URL with /tree/ or /blob/
+	// This pattern captures the username, repo name, branch, and subdirectory path
+	const githubWebUrlPattern =
+		/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(tree|blob)\/([^/]+)(?:\/(.*))?$/
+	const match = trimmedUrl.match(githubWebUrlPattern)
+
+	if (match) {
+		// Extract the username, repo name, branch, and subdirectory path
+		const [, username, repo, , , subdir] = match
+		// Convert to a valid Git repository URL
+		return {
+			validUrl: `https://github.com/${username}/${repo}.git`,
+			subdir,
+		}
+	}
+
+	return null
+}
+
 /**
  * Checks if a URL is a valid Git repository URL
  * @param url The URL to validate
- * @returns True if the URL is a valid Git repository URL, false otherwise
+ * @returns True if the URL is a valid Git repository URL or a GitHub web URL that can be converted, false otherwise
  */
 export function isValidGitRepositoryUrl(url: string): boolean {
 	// Trim the URL to remove any leading/trailing whitespace
 	const trimmedUrl = url.trim()
 
-	// Check for GitHub web URLs with /tree/ or /blob/ which are not valid Git repository URLs
-	const githubWebUrlPattern = /^https?:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/(tree|blob)\/[^/]+\/.+$/
-	if (githubWebUrlPattern.test(trimmedUrl)) {
-		return false
+	// Check if this is a GitHub web URL that can be converted
+	if (convertGitHubWebUrl(trimmedUrl) !== null) {
+		return true
 	}
 
 	// HTTPS pattern (GitHub, GitLab, Bitbucket, etc.)
