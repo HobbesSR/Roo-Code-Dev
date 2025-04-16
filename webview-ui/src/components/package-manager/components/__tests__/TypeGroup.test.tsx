@@ -20,8 +20,10 @@ describe("TypeGroup", () => {
 		render(<TypeGroup type="mcp server" items={mockItems} />)
 
 		expect(screen.getByText("MCP Servers")).toBeInTheDocument()
-		expect(screen.getByText("Test Item 1 - Description 1")).toBeInTheDocument()
-		expect(screen.getByText("Test Item 2 - Description 2")).toBeInTheDocument()
+		expect(screen.getByText("Test Item 1")).toBeInTheDocument()
+		expect(screen.getByText("Description 1", { exact: false })).toBeInTheDocument()
+		expect(screen.getByText("Test Item 2")).toBeInTheDocument()
+		expect(screen.getByText("Description 2", { exact: false })).toBeInTheDocument()
 	})
 
 	it("should format different types correctly", () => {

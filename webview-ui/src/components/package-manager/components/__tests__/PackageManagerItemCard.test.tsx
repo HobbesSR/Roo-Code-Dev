@@ -108,31 +108,33 @@ describe("PackageManagerItemCard", () => {
 		it("should render expandable details section when item has subcomponents", () => {
 			render(<PackageManagerItemCard {...defaultProps} />)
 
-			expect(screen.getByText("Details")).toBeInTheDocument()
+			expect(screen.getByText("Component Details")).toBeInTheDocument()
 		})
 
 		it("should not render details section when item has no subcomponents", () => {
 			const itemWithoutItems = { ...mockItem, items: [] }
 			render(<PackageManagerItemCard {...defaultProps} item={itemWithoutItems} />)
 
-			expect(screen.queryByText("Details")).not.toBeInTheDocument()
+			expect(screen.queryByText("Component Details")).not.toBeInTheDocument()
 		})
 
 		it("should show grouped items when expanded", () => {
 			render(<PackageManagerItemCard {...defaultProps} />)
 
-			fireEvent.click(screen.getByText("Details"))
+			fireEvent.click(screen.getByText("Component Details"))
 
 			expect(screen.getByText("MCP Servers")).toBeInTheDocument()
 			expect(screen.getByText("Modes")).toBeInTheDocument()
-			expect(screen.getByText("Test Server - A test server")).toBeInTheDocument()
-			expect(screen.getByText("Test Mode - A test mode")).toBeInTheDocument()
+			expect(screen.getByText("Test Server")).toBeInTheDocument()
+			expect(screen.getByText("A test server", { exact: false })).toBeInTheDocument()
+			expect(screen.getByText("Test Mode")).toBeInTheDocument()
+			expect(screen.getByText("A test mode", { exact: false })).toBeInTheDocument()
 		})
 
 		it("should maintain proper order of items within groups", () => {
 			render(<PackageManagerItemCard {...defaultProps} />)
 
-			fireEvent.click(screen.getByText("Details"))
+			fireEvent.click(screen.getByText("Component Details"))
 
 			const items = screen.getAllByRole("listitem")
 			expect(items[0]).toHaveTextContent("Test Server")
